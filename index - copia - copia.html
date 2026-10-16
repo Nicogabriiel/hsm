@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registro Diario de Ventas</title>
+  <!-- Tailwind CSS para el diseño -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Librería SheetJS para exportar a Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 md:p-8">
+  <div class="max-w-5xl mx-auto space-y-6">
+    
+    <!-- Encabezado -->
+    <header class="bg-white p-6 rounded-xl shadow-md flex justify-between items-center">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-800">Registro Diario de Ventas</h1>
+        <p class="text-sm text-gray-500">Validación estricta de catálogo, precios libres y comentarios</p>
+      </div>
+      <button onclick="exportarExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg shadow transition">
+        📊 Exportar a Excel
+      </button>
+    </header>
+
+    <!-- Formulario de Registro de Ventas -->
+    <section class="bg-white p-6 rounded-xl shadow-md">
+      <h2 class="text-lg font-semibold text-gray-700 mb-4">Nueva Venta / Ticket</h2>
+      <form id="ventaForm" onsubmit="registrarVenta(event)" class="space-y-4">
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4 border-b border-gray-200">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Nº Venta (Auto)</label>
+            <input type="text" id="numVenta" readonly class="w-full bg-gray-100 border border-gray-300 rounded-lg p-2.5 font-bold text-blue-600 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+            <input type="date" id="fecha" onchange="actualizarNumeroVentaAuto()" required class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+        </div>
+
+        <!-- Contenedor de Ítems / Productos de la venta -->
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <label class="block text-sm font-medium text-gray-700">Productos en esta venta (Solo de la lista oficial)</label>
+            <button type="button" onclick="agregarFilaItem()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs py-1.5 px-3 rounded-lg border border-indigo-200 transition">
+              ➕ Agregar otro producto
+            </button>
+          </div>
+          
+          <div id="itemsContainer" class="space-y-3">
+            <!-- Las filas de productos se inyectan aquí -->
+          </div>
+        </div>
+
+        <!-- Comentario de la Operación -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Comentarios / Notas (Ej: Pago por transferencia, cliente Juan)</label>
+          <input type="text" id="comentarioOperacion" placeholder="Opcional: Detalle de pago, envío, descuento especial, etc." class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+
+        <!-- Total de la Operación -->
+        <div class="bg-gray-50 p-4 rounded-xl flex justify-between items-center border border-gray-200">
+          <span class="font-bold text-gray-700 text-lg">Total de la Operación:</span>
+          <span id="totalOperacionLabel" class="font-extrabold text-2xl text-emerald-600">$0</span>
+        </div>
+
+        <div>
+          <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg shadow transition">
+            💾 Guardar Venta Completa
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Tabla de Ventas Registradas -->
+    <section class="bg-white p-6 rounded-xl shadow-md overflow-x-auto">
+      <h2 class="text-lg font-semibold text-gray-700 mb-4">Ventas Registradas</h2>
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600 uppercase">
+            <th class="p-3">Nº Venta</th>
+            <th class="p-3">Fecha</th>
+            <th class="p-3">Producto</th>
+            <th class="p-3 text-center">Unidades</th>
+            <th class="p-3 text-right">Precio Unitario</th>
+            <th class="p-3 text-right">Total</th>
+            <th class="p-3">Comentarios</th>
+            <th class="p-3 text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tablaVentas" class="divide-y divide-gray-200 text-sm">
+          <!-- Filas dinámicas -->
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Módulo de Gestión del Catálogo -->
+    <section class="bg-white p-6 rounded-xl shadow-md">
+      <h2 class="text-lg font-semibold text-gray-700 mb-4">Administrar Lista de Productos Oficiales</h2>
+      <form onsubmit="agregarProductoAlCatalogo(event)" class="flex gap-3 mb-4">
+        <input type="text" id="nuevoProductoInput" placeholder="Ej: campera de abrigo, gorro de lana..." required class="flex-1 border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+        <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 text-sm rounded-lg shadow transition">
+          ➕ Agregar a la lista
+        </button>
+      </form>
+      
+      <div>
+        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">Productos permitidos (Haz clic en la '×' para quitar):</span>
+        <div id="listaProductosContainer" class="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-2 border border-gray-100 rounded-lg bg-gray-50">
+          <!-- Se cargan dinámicamente -->
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Datalist global para autocompletado -->
+  <datalist id="sugerenciasProductos">
+    <!-- Se llena dinámicamente -->
+  </datalist>
+
+  <script>
+    // Catálogo inicial basado en tu archivo Excel
+    const catalogoBase = [
+      "buzo canguro estampado", "buzo canguro liso", "buzo darlon", "buzo oversize",
+      "buzo oversize estampado", "remera estampada", "remera estampada larga",
+      "remera lisa", "remera lisa larga", "remera ranglan estampada",
+      "remera ranglan estampada larga", "remera ranglan lisa", "remera ranglan lisa larga"
+    ];
+
+    let listaProductos = JSON.parse(localStorage.getItem('productos_db')) || catalogoBase;
+    let ventas = JSON.parse(localStorage.getItem('ventas_db')) || [];
+
+    window.onload = function() {
+      document.getElementById('fecha').valueAsDate = new Date();
+      actualizarDatalist();
+      renderProductosChips();
+      actualizarNumeroVentaAuto();
+      agregarFilaItem(); // Fila inicial
+      renderTabla();
+    };
+
+    // Agregar producto al catálogo oficial
+    function agregarProductoAlCatalogo(e) {
+      e.preventDefault();
+      const input = document.getElementById('nuevoProductoInput');
+      const nombreProducto = input.value.trim().toLowerCase();
+
+      if (!nombreProducto) return;
+
+      if (listaProductos.includes(nombreProducto)) {
+        alert("Este producto ya se encuentra en la lista oficial.");
+        return;
+      }
+
+      listaProductos.push(nombreProducto);
+      listaProductos.sort();
+      localStorage.setItem('productos_db', JSON.stringify(listaProductos));
+
+      input.value = '';
+      actualizarDatalist();
+      renderProductosChips();
+    }
+
+    // Quitar producto del catálogo oficial
+    function eliminarProductoDelCatalogo(nombre) {
+      if (confirm(`¿Estás seguro de quitar "${nombre}" de la lista oficial?`)) {
+        listaProductos = listaProductos.filter(p => p !== nombre);
+        localStorage.setItem('productos_db', JSON.stringify(listaProductos));
+        actualizarDatalist();
+        renderProductosChips();
+      }
+    }
+
+    function renderProductosChips() {
+      const container = document.getElementById('listaProductosContainer');
+      container.innerHTML = '';
+
+      listaProductos.forEach(prod => {
+        const chip = document.createElement('span');
+        chip.className = "inline-flex items-center gap-1.5 bg-white text-gray-700 text-xs px-3 py-1 rounded-full border border-gray-200 capitalize shadow-xs";
+        chip.innerHTML = `
+          ${prod}
+          <button type="button" onclick="eliminarProductoDelCatalogo('${prod}')" class="text-red-400 hover:text-red-600 font-bold ml-1 text-sm">&times;</button>
+        `;
+        container.appendChild(chip);
+      });
+    }
+
+    function actualizarDatalist() {
+      const datalist = document.getElementById('sugerenciasProductos');
+      datalist.innerHTML = listaProductos.map(p => `<option value="${p}"></option>`).join('');
+    }
+
+    function actualizarNumeroVentaAuto() {
+      const fechaSeleccionada = document.getElementById('fecha').value;
+      if (!fechaSeleccionada) return;
+
+      const ventasDelDia = ventas.filter(v => v.fecha === fechaSeleccionada);
+      const idsUnicos = [...new Set(ventasDelDia.map(v => v.numVenta))];
+      document.getElementById('numVenta').value = idsUnicos.length + 1;
+    }
+
+    function agregarFilaItem() {
+      const container = document.getElementById('itemsContainer');
+      const div = document.createElement('div');
+      div.className = "grid grid-cols-1 md:grid-cols-12 gap-2 items-center bg-gray-50 p-3 rounded-lg border border-gray-200 item-row";
+
+      div.innerHTML = `
+        <div class="md:col-span-5">
+          <label class="block text-xs font-medium text-gray-500 md:hidden mb-1">Producto</label>
+          <input type="text" list="sugerenciasProductos" class="item-producto w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Escribe para buscar..." required>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-500 md:hidden mb-1">Unidades</label>
+          <input type="number" class="item-unidades w-full border border-gray-300 rounded-lg p-2 text-sm text-center focus:ring-2 focus:ring-blue-500 focus:outline-none" min="1" value="1" oninput="calcularTotalOperacion()" required>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-500 md:hidden mb-1">Precio Unitario ($)</label>
+          <input type="number" step="any" class="item-precio w-full border border-gray-300 rounded-lg p-2 text-sm text-right focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Precio libre" oninput="calcularTotalOperacion()" required>
+        </div>
+        <div class="md:col-span-2 text-right">
+          <span class="block text-xs font-medium text-gray-500 md:hidden">Subtotal</span>
+          <span class="item-subtotal font-bold text-gray-800 text-sm">$0</span>
+        </div>
+        <div class="md:col-span-1 text-center">
+          <button type="button" onclick="eliminarFilaItem(this)" class="text-red-400 hover:text-red-600 font-bold p-1">&times;</button>
+        </div>
+      `;
+
+      container.appendChild(div);
+      calcularTotalOperacion();
+    }
+
+    function eliminarFilaItem(btn) {
+      const rows = document.querySelectorAll('.item-row');
+      if (rows.length === 1) {
+        alert("La venta debe tener al menos un producto.");
+        return;
+      }
+      btn.closest('.item-row').remove();
+      calcularTotalOperacion();
+    }
+
+    function calcularTotalOperacion() {
+      const rows = document.querySelectorAll('.item-row');
+      let totalOp = 0;
+
+      rows.forEach(row => {
+        const unidades = parseFloat(row.querySelector('.item-unidades').value) || 0;
+        const precio = parseFloat(row.querySelector('.item-precio').value) || 0;
+        const subtotal = unidades * precio;
+        row.querySelector('.item-subtotal').textContent = `$${subtotal.toLocaleString()}`;
+        totalOp += subtotal;
+      });
+
+      document.getElementById('totalOperacionLabel').textContent = `$${totalOp.toLocaleString()}`;
+    }
+
+    function registrarVenta(e) {
+      e.preventDefault();
+      const rows = document.querySelectorAll('.item-row');
+
+      // Validación estricta: verificar que todos los productos escritos pertenezcan a la lista oficial
+      for (let row of rows) {
+        const productoTexto = row.querySelector('.item-producto').value.trim().toLowerCase();
+        if (!listaProductos.includes(productoTexto)) {
+          alert(`El producto "${productoTexto}" no es válido o no está en la lista oficial. Por favor, selecciónalo del listado o agrégalo primero abajo en la sección de administración.`);
+          row.querySelector('.item-producto').focus();
+          return;
+        }
+      }
+
+      const numVenta = parseInt(document.getElementById('numVenta').value);
+      const fecha = document.getElementById('fecha').value;
+      const comentario = document.getElementById('comentarioOperacion').value.trim();
+      const ticketId = Date.now();
+
+      let nuevosItems = [];
+      rows.forEach(row => {
+        const productoTexto = row.querySelector('.item-producto').value.trim().toLowerCase();
+        const unidades = parseInt(row.querySelector('.item-unidades').value);
+        const precio = parseFloat(row.querySelector('.item-precio').value);
+
+        nuevosItems.push({
+          id: Date.now() + Math.random(),
+          ticketId: ticketId,
+          numVenta: numVenta,
+          fecha: fecha,
+          producto: productoTexto,
+          unidades: unidades,
+          precio: precio,
+          total: unidades * precio,
+          comentario: comentario
+        });
+      });
+
+      ventas.push(...nuevosItems);
+      guardarYActualizar();
+      
+      document.getElementById('itemsContainer').innerHTML = '';
+      document.getElementById('comentarioOperacion').value = '';
+      agregarFilaItem();
+      actualizarNumeroVentaAuto();
+    }
+
+    function eliminarVenta(ticketId) {
+      if (confirm("¿Estás seguro de eliminar esta venta completa?")) {
+        ventas = ventas.filter(v => v.ticketId !== ticketId);
+        guardarYActualizar();
+        actualizarNumeroVentaAuto();
+      }
+    }
+
+    function guardarYActualizar() {
+      localStorage.setItem('ventas_db', JSON.stringify(ventas));
+      renderTabla();
+    }
+
+    function renderTabla() {
+      const tbody = document.getElementById('tablaVentas');
+      tbody.innerHTML = '';
+
+      if (ventas.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-gray-400">No hay ventas registradas aún.</td></tr>`;
+        return;
+      }
+
+      const ventasOrdenadas = [...ventas].sort((a, b) => {
+        if (a.fecha === b.fecha) {
+          return b.numVenta - a.numVenta;
+        }
+        return new Date(b.fecha) - new Date(a.fecha);
+      });
+
+      ventasOrdenadas.forEach(v => {
+        const row = document.createElement('tr');
+        row.className = "hover:bg-gray-50";
+        row.innerHTML = `
+          <td class="p-3 font-bold text-blue-600">#${v.numVenta}</td>
+          <td class="p-3">${v.fecha}</td>
+          <td class="p-3 capitalize">${v.producto}</td>
+          <td class="p-3 text-center">${v.unidades}</td>
+          <td class="p-3 text-right">$${v.precio.toLocaleString()}</td>
+          <td class="p-3 text-right font-bold text-gray-800">$${v.total.toLocaleString()}</td>
+          <td class="p-3 text-gray-500 italic text-xs">${v.comentario || '-'}</td>
+          <td class="p-3 text-center">
+            <button onclick="eliminarVenta(${v.ticketId})" class="text-red-500 hover:text-red-700 text-xs font-semibold">Eliminar</button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function exportarExcel() {
+      if (ventas.length === 0) {
+        alert("No hay datos para exportar.");
+        return;
+      }
+
+      const datosExcel = ventas.map(v => ({
+        "venta": v.numVenta,
+        "FECHA": v.fecha,
+        "PRODUCTO": v.producto,
+        "UNIDADES": v.unidades,
+        "PRECIO": v.precio,
+        "TOTAL": v.total,
+        "COMENTARIOS": v.comentario || ""
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(datosExcel);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Hoja1");
+      XLSX.writeFile(wb, "registro_ventas.xlsx");
+    }
+  </script>
+</body>
+</html>
